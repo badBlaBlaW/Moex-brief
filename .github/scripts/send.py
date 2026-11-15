@@ -14,12 +14,13 @@ def pick_file() -> pathlib.Path:
     briefs = sorted(p for p in pathlib.Path("briefs").glob("*.md")
                     if p.stat().st_size and p.name.lower() != "readme.md")
     if not briefs:
-        sys.exit("no briefs/*.md found")
+        print("No brief to send yet — nothing to do.")
+        sys.exit(0)                   # not an error: the repo simply has no brief
     return briefs[-1]                 # filenames are YYYY-MM-DD, so last = newest
 
 def main() -> None:
+    path = pick_file()                # may exit cleanly if there is nothing to send
     lang = tg.load_config()["language"]
-    path = pick_file()
     parts = tg.chunk(tg.md_to_html(path.read_text(encoding="utf-8").strip()))
     print(f"Sending {path} as {len(parts)} message(s), language={lang}")
     for i, part in enumerate(parts, 1):

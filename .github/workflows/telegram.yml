@@ -4,8 +4,7 @@ on:
   push:
     paths:
       - 'briefs/*.md'
-    paths-ignore:
-      - 'briefs/README.md'
+      - '!briefs/README.md'
   workflow_dispatch:
     inputs:
       file:
