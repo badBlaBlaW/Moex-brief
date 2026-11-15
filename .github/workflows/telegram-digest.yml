@@ -1,0 +1,35 @@
+name: Collect Telegram channels
+
+# Runs shortly before the brief. GitHub runners have open internet; neither
+# Claude's container nor the scheduled session can reach t.me, so the digest is
+# collected here and read from the repository.
+on:
+  schedule:
+    - cron: '36 5 * * 1-5'        # 08:36 Moscow, ~16 min before the brief
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: telegram-digest
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 .github/scripts/collect_telegram.py
+      - name: Commit the digest
+        run: |
+          if [ -n "$(git status --porcelain sources/)" ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add sources/
+            git commit -m "digest: telegram channels"
+            git pull --rebase --autostash -q || true
+            git push
+          else
+            echo "digest unchanged"
+          fi

@@ -1,0 +1,6 @@
+# Public Telegram channels to read before each brief, one per line.
+# Only PUBLIC channels work — private ones have no web preview.
+# Add or remove freely; blank lines and # comments are ignored.
+markettwits
+cbrstocks
+if_market_news
