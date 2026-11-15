@@ -60,41 +60,37 @@ Look for `"chat":{"id":123456789` — that number is your **chat ID**.
 They are encrypted. Nobody can read them back — not you, not Claude.
 
 ### 4. Say hello
-Send `/start` to your bot, then run
-**Actions → Check for button presses → Run workflow**.
+Send `/start` to your bot. Mark replies instantly, in whatever language your
+Telegram app is set to.
 
-Mark introduces himself **in the language your Telegram app is set to** — no
-choosing required. Two buttons appear above your keyboard and stay there.
+If nothing comes back, the webhook is not set up yet — see `worker/SETUP.md`.
 
 ## Everyday use
 
-There is nothing to do. The brief arrives each weekday at **08:52 Moscow time**.
+Nothing to do. The brief arrives each weekday at **08:52 Moscow time**.
 
-Two buttons are always on screen:
+Two buttons sit above your keyboard at all times:
 
 | Button | What it does |
 |--------|--------------|
 | 🇷🇺 Русский / 🇬🇧 English | Switch language — applies from the next brief |
 | ❓ Help / ❓ Помощь | What this is and when it arrives |
 
-## About the buttons — read this once
+Both answer immediately.
 
-Telegram buttons are not local. Pressing one sends a message to Telegram's
-servers, and something has to read it. This repo reads once a day, at 08:41
-Moscow time, just before the brief is written.
+## How replies work
 
-So **a button press is acted on at the next brief.** For a language switch that
-is the right timing anyway — the change could not apply to a brief already sent.
+A Cloudflare Worker receives every message from Telegram the moment you send
+it and answers straight away. Setup is in `worker/SETUP.md` — once, about 15
+minutes, free.
 
-If you want instant replies, that needs an always-on webhook (Cloudflare Workers'
-free tier does it). Ask Claude — about 15 minutes of setup.
-
-To get an answer immediately in the meantime, run
-**Actions → Check for button presses → Run workflow**.
+The Worker handles conversation only. Briefs reach you through GitHub, so even
+if the Worker is down the daily brief still arrives; only the buttons stop.
 
 ## How the language setting works
 `config.json` holds `{"language": "en"}` or `{"language": "ru"}`.
 `/start` sets it from your Telegram locale; the button changes it afterwards.
+The Worker writes this file directly, which is why it needs a GitHub token.
 
 The daily brief reads this file **before writing anything** and composes the
 whole brief in that language — analysis, headings, confidence labels and all,
