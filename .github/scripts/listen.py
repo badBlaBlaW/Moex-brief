@@ -15,12 +15,28 @@ import bridge_text as B, tg
 POLL_SECONDS = 50                 # how long Telegram holds the connection
 RUN_SECONDS  = 5 * 3600 + 40 * 60  # stop before the 6h job limit
 
+def git(*args, check=True):
+    return subprocess.run(["git", *args], capture_output=True, text=True, check=check)
+
+
+def refresh():
+    """Pull before reading briefs.
+
+    A shift lasts six hours; the checkout is made once at the start. Without
+    this, a brief published mid-shift is invisible and /brief keeps returning
+    yesterday's.
+    """
+    r = git("pull", "--rebase", "--autostash", check=False)
+    if r.returncode:
+        print(f"::warning::could not refresh briefs: {r.stderr.strip()[:200]}")
+
 def latest_brief():
     briefs = sorted(p for p in pathlib.Path("briefs").glob("*.md")
                     if p.stat().st_size and p.name.lower() != "readme.md")
     return briefs[-1] if briefs else None
 
 def send_brief(lang):
+    refresh()
     path = latest_brief()
     if not path:
         tg.send(B.NO_BRIEF[lang].format(w=B.next_brief(lang)), markup=B.kb_menu(lang)); return
@@ -30,9 +46,6 @@ def send_brief(lang):
         tag = (f"\n\n<i>({i}{' из ' if lang=='ru' else '/'}{len(parts)})</i>"
                if len(parts) > 1 else "")
         tg.send(part + tag, markup=B.kb_menu(lang) if i == len(parts) else None)
-
-def git(*args, check=True):
-    return subprocess.run(["git", *args], capture_output=True, text=True, check=check)
 
 def persist(cfg):
     """Commit the language/stage change. Rebase first — a brief may have landed."""
