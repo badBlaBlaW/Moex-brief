@@ -1,6 +1,15 @@
-# Public Telegram channels to read before each brief, one per line.
-# Only PUBLIC channels work — private ones have no web preview.
-# Add or remove freely; blank lines and # comments are ignored.
-markettwits
-cbrstocks
-if_market_news
+# Public Telegram channels read before each brief, one per line, no @.
+# Only PUBLIC channels work — private or paid ones have no web preview and
+# will be reported as unreadable in the digest.
+profitanet
+antonchehovanalitk
+mkot_finance
+selfinvestor
+cbonds
+finsovetnik
+RH_Stocks
+cozytrade
+cozybasis
+daycapital3
+FinamPremium
+finchehov
