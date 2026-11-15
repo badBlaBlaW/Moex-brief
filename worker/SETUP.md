@@ -61,8 +61,25 @@ You should see `{"ok":true,"result":true,"description":"Webhook was set"}`.
 
 ## 6. Test
 
-Send `/start` to the bot. Mark should reply **within a second**. Press the
-language button — the switch is instant too.
+Send `/start` to the bot. Within a second Mark should ask, in both languages,
+which one you want. Then:
+
+1. Tap 🇷🇺 Русский or 🇬🇧 English
+2. He confirms and tells you when the next brief lands
+3. He asks whether to send today's brief now
+4. Tap yes and it arrives; tap no and he signs off until the next one
+
+## 7. Remove the temporary bridge
+
+Once the webhook works, delete these three files from the repository — they
+were only there to answer the bot before the Worker existed:
+
+    .github/workflows/listen.yml
+    .github/scripts/listen.py
+    .github/scripts/bridge_text.py
+
+They retire themselves quietly if you forget (Telegram stops serving
+getUpdates once a webhook is set), but there is no reason to keep them.
 
 ---
 
