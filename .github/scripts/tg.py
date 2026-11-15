@@ -17,6 +17,29 @@ def chat() -> str:
         sys.exit("TELEGRAM_CHAT_ID secret is not set in this repository.")
     return c
 
+def owners(cfg: dict) -> list:
+    """Every chat allowed to use the bot and entitled to the briefs.
+
+    The primary owner lives in the TELEGRAM_CHAT_ID secret and is never written
+    to the repository. Devices enrolled later are listed in config.json.
+    """
+    out = [chat()]
+    for c in cfg.get("owners", []):
+        if str(c) not in out:
+            out.append(str(c))
+    return out
+
+def is_owner(cfg: dict, chat_id) -> bool:
+    return str(chat_id) in owners(cfg)
+
+def broadcast(cfg: dict, text: str, markup: dict | None = None) -> None:
+    """Send to every enrolled device. One failure must not stop the rest."""
+    for c in owners(cfg):
+        try:
+            send(text, chat_id=c, markup=markup)
+        except RuntimeError as e:
+            print(f"::warning::could not reach chat {c}: {e}")
+
 def load_config() -> dict:
     try:
         cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
@@ -24,6 +47,8 @@ def load_config() -> dict:
         cfg = {}
     cfg.setdefault("language", "en")
     cfg.setdefault("last_update_id", 0)
+    cfg.setdefault("owners", [])
+    cfg.setdefault("invite", None)
     if cfg["language"] not in ("en", "ru"):
         cfg["language"] = "en"
     return cfg

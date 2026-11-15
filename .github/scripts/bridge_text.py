@@ -15,8 +15,29 @@ ASK_LANGUAGE = (
 LANG_BTN  = {"ru": "🇷🇺 Русский", "en": "🇬🇧 English"}
 OFFER_BTN = {"ru": {"yes": "Да, пришли", "no": "Нет, спасибо"},
              "en": {"yes": "Yes, send it", "no": "No thanks"}}
-MENU_BTN  = {"ru": {"lang": "🇬🇧 English", "brief": "📄 Последний обзор", "help": "❓ Помощь"},
-             "en": {"lang": "🇷🇺 Русский", "brief": "📄 Latest brief", "help": "❓ Help"}}
+MENU_BTN  = {"ru": {"lang": "🇬🇧 English", "brief": "📄 Последний обзор",
+                    "device": "🔗 Добавить устройство", "help": "❓ Помощь"},
+             "en": {"lang": "🇷🇺 Русский", "brief": "📄 Latest brief",
+                    "device": "🔗 Add a device", "help": "❓ Help"}}
+
+INVITE = {
+    "ru": ("<b>Ссылка для нового устройства</b>\n\n{link}\n\n"
+           "Откройте её на другом устройстве — и этот аккаунт получит доступ.\n"
+           "Действует <b>15 минут</b> и <b>один раз</b>. "
+           "Пока она жива — это пароль, никому не пересылайте."),
+    "en": ("<b>Link for a new device</b>\n\n{link}\n\n"
+           "Open it on the other device and that account gets access.\n"
+           "Valid for <b>15 minutes</b>, <b>one use</b>. "
+           "While it lives it is a password — do not forward it."),
+}
+ENROLLED = {
+    "ru": "✅ Устройство добавлено. Обзоры будут приходить и сюда.",
+    "en": "✅ Device added. Briefs will arrive here too.",
+}
+INVITE_BAD = {
+    "ru": "Ссылка истекла или уже использована. Запросите новую на том устройстве, где бот уже работает.",
+    "en": "That link has expired or was already used. Ask for a new one from a device where the bot already works.",
+}
 CONFIRMED = {"ru": "Отлично — буду писать по-русски.\n\nСледующий обзор: <b>{w}</b>.",
              "en": "English it is.\n\nYour next brief: <b>{w}</b>."}
 OFFER     = {"ru": "Прислать сегодняшний обзор прямо сейчас?",
@@ -67,4 +88,6 @@ def keyboard(*rows_):
 
 kb_language = lambda: keyboard([LANG_BTN["ru"], LANG_BTN["en"]])
 kb_offer    = lambda l: keyboard([OFFER_BTN[l]["yes"], OFFER_BTN[l]["no"]])
-kb_menu     = lambda l: keyboard([MENU_BTN[l]["brief"]], [MENU_BTN[l]["lang"], MENU_BTN[l]["help"]])
+kb_menu     = lambda l: keyboard([MENU_BTN[l]["brief"]],
+                                 [MENU_BTN[l]["lang"], MENU_BTN[l]["help"]],
+                                 [MENU_BTN[l]["device"]])

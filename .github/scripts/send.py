@@ -20,15 +20,18 @@ def pick_file() -> pathlib.Path:
 
 def main() -> None:
     path = pick_file()                # may exit cleanly if there is nothing to send
-    lang = tg.load_config()["language"]
+    cfg = tg.load_config()
+    lang = cfg["language"]
     parts = tg.chunk(tg.md_to_html(path.read_text(encoding="utf-8").strip()))
-    print(f"Sending {path} as {len(parts)} message(s), language={lang}")
+    recipients = tg.owners(cfg)
+    print(f"Sending {path} as {len(parts)} message(s), language={lang}, "
+          f"to {len(recipients)} device(s)")
     for i, part in enumerate(parts, 1):
         last = i == len(parts)
         tag = "\n\n<i>" + strings.PART[lang].format(i=i, n=len(parts)) + "</i>" \
               if len(parts) > 1 else ""
         # Keyboard rides on the final message so it is what stays on screen.
-        tg.send(part + tag, markup=strings.keyboard(lang) if last else None)
+        tg.broadcast(cfg, part + tag, markup=strings.keyboard(lang) if last else None)
     print("done")
 
 if __name__ == "__main__":

@@ -111,3 +111,19 @@ Most common cause: the token was regenerated in BotFather — update the secret.
 
 ## To stop it
 Delete the `TELEGRAM_TOKEN` secret, or disable the workflows in the Actions tab.
+
+## Adding another device
+
+A chat id identifies a Telegram **account**, not a device — the same account on
+ten phones already receives everything. Only a different account needs enrolling.
+
+Press **🔗 Добавить устройство / Add a device**. Mark replies with a link valid
+for **15 minutes and one use**. Open it on the other device and that account is
+enrolled: it gets the daily brief and can use every button.
+
+While it is alive, that link is a password. It expires on first use, so there is
+nothing lasting to leak.
+
+Enrolled ids are stored in `config.json` under `owners`. The primary owner lives
+in the `TELEGRAM_CHAT_ID` secret and is never written to the repository. To
+revoke a device, delete its id from `owners`.
