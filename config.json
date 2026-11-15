@@ -1,8 +1,12 @@
 {
   "language": "en",
-  "last_update_id": 945576967,
+  "last_update_id": 945576968,
   "onboarded": true,
   "stage": "idle",
   "owners": [],
-  "invite": null
+  "invite": {
+    "token": "m6sJ17l0L0iliQSNxLTboweZ",
+    "expires": "2026-11-15T17:57:53.261702+00:00"
+  },
+  "bot_username": "ShareMarkWatch_bot"
 }
