@@ -32,13 +32,13 @@ def save_config(cfg: dict) -> None:
     CONFIG.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n",
                       encoding="utf-8")
 
-def call(method: str, payload: dict, retries: int = 2):
+def call(method: str, payload: dict, retries: int = 2, http_timeout: int = 35):
     data = json.dumps(payload).encode()
     req = urllib.request.Request(API.format(token(), method), data=data,
                                  headers={"Content-Type": "application/json"})
     for attempt in range(retries + 1):
         try:
-            with urllib.request.urlopen(req, timeout=35) as r:
+            with urllib.request.urlopen(req, timeout=http_timeout) as r:
                 return json.load(r)
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", "replace")

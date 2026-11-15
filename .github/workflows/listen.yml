@@ -1,37 +1,36 @@
-name: Answer the bot (temporary bridge)
+name: Mark is listening
 
-# A stopgap until the Cloudflare Worker in worker/ is live. Polls every 15
-# minutes so /start and the buttons work at all. Once the Worker's webhook is
-# set, Telegram stops serving getUpdates and this retires itself quietly —
-# delete this file and .github/scripts/listen.py at that point.
+# Holds a long-poll open to Telegram so replies are immediate. Each run listens
+# for just under six hours, then starts the next one, so the chain is
+# continuous. The schedule is only a safety net if a link in the chain breaks.
 on:
-  schedule:
-    - cron: '*/15 5-20 * * *'       # 08:00-23:00 Moscow
   workflow_dispatch:
+  schedule:
+    - cron: '7 */5 * * *'
 
 permissions:
-  contents: write
+  contents: write        # to remember the language choice
+  actions: write         # to start the next shift
 
 concurrency:
-  group: telegram-bridge
+  group: mark-listener   # never two pollers: Telegram 409s if they overlap
   cancel-in-progress: false
 
 jobs:
-  poll:
+  listen:
     runs-on: ubuntu-latest
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
-      - name: Read any messages
+
+      - name: Listen
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python3 .github/scripts/listen.py
-      - name: Remember any change
-        run: |
-          if [ -n "$(git status --porcelain config.json)" ]; then
-            git config user.name  "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add config.json && git commit -m "bot: update settings" && git push
-          else
-            echo "nothing to save"
-          fi
+
+      - name: Hand over to the next shift
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run listen.yml --repo "$GITHUB_REPOSITORY"

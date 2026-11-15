@@ -44,10 +44,10 @@ For each one choose type **Secret**, not Text.
 | Name | Value |
 |------|-------|
 | `TELEGRAM_TOKEN` | from @BotFather |
-| `TELEGRAM_CHAT_ID` | `<your chat id>` |
+| `TELEGRAM_CHAT_ID` | your chat id (see step 2) |
 | `WEBHOOK_SECRET` | the random string from step 2 |
 | `GITHUB_TOKEN` | the `github_pat_...` from step 1 |
-| `GITHUB_REPO` | `badBlaBlaW/Moex-brief` |
+| `GITHUB_REPO` | `owner/repo` of this repository |
 
 **Deploy** again after adding them.
 

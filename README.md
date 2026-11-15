@@ -80,12 +80,19 @@ Both answer immediately.
 
 ## How replies work
 
-A Cloudflare Worker receives every message from Telegram the moment you send
-it and answers straight away. Setup is in `worker/SETUP.md` — once, about 15
-minutes, free.
+A workflow holds a **long-poll** open to Telegram: the connection stays live
+and returns the instant you send something, so Mark answers immediately. Each
+run listens for just under six hours and then starts the next, so the chain is
+continuous. A six-hourly schedule is the safety net if a link ever breaks.
 
-The Worker handles conversation only. Briefs reach you through GitHub, so even
-if the Worker is down the daily brief still arrives; only the buttons stop.
+This is why the repository is public — GitHub gives public repositories
+unlimited Actions minutes, and continuous listening needs far more than the
+2,000 a month private ones get.
+
+`worker/` holds a Cloudflare Worker that does the same job as a true webhook,
+with nothing polling and nothing to keep alive. It is unused, and is the route
+to take if the repository ever needs to be private again.
+
 
 ## How the language setting works
 `config.json` holds `{"language": "en"}` or `{"language": "ru"}`.
