@@ -163,8 +163,20 @@ def drain(cfg, wait: int):
         time.sleep(5)
         return False, 0
     updates = resp.get("result", [])
+    if updates:
+        # Acknowledge to Telegram BEFORE handling. Updates stay queued until a
+        # request arrives with a higher offset, so a job that is cancelled or
+        # dies mid-handling would otherwise have them redelivered to the next
+        # shift — and the user would be greeted twice.
+        newest = max(u["update_id"] for u in updates)
+        try:
+            tg.call("getUpdates", {"offset": newest + 1, "timeout": 0},
+                    http_timeout=20)
+        except RuntimeError as e:
+            print(f"::warning::could not confirm offset {newest}: {e}")
+        cfg["last_update_id"] = max(cfg["last_update_id"], newest)
+
     for u in updates:
-        cfg["last_update_id"] = max(cfg["last_update_id"], u["update_id"])
         if u.get("message"):
             handle(u["message"], cfg)
     return cfg != before, len(updates)
