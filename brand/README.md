@@ -11,6 +11,9 @@ not as a document.
 | `mark-avatar-scales.png` | proof it holds at 512 / 160 / 96 / 48 px |
 | `make-avatar.py` | regenerates all three; edit this, not the PNGs |
 | `PHILOSOPHY.md` | the design rules the mark answers to |
+| `mark-description.png` | the 640×360 card shown above the bot's description |
+| `mark-portrait-source.png` | the generated portrait, ungraded |
+| `make-description.py` | rebuilds the card from the portrait |
 
 ## The mark
 
@@ -23,3 +26,17 @@ Ink `#0B1725`, gold `#D9A441`, grid `#1E3752`, baseline `#2C4C6C`.
 
 Drawn in code at 8× and downsampled, so it is resolution-independent: change
 `S` in `make-avatar.py` for any size.
+
+## The description card
+
+`mark-description.png` is what Telegram shows above the bot's description on an
+empty chat. Set it in **@BotFather** → `/mybots` → your bot → **Edit Bot** →
+**Edit Description Picture**.
+
+The portrait was generated with FLUX.1 Krea-dev, prompted for a navy-black
+backdrop and a warm rim light from camera left — the avatar's ink and gold — so
+the photograph is lit for the card rather than pasted onto it. It is then
+graded cooler, its blacks lifted to the ink value, and its left edge feathered
+so the figure emerges from the ground instead of sitting on a visible rectangle.
+
+The man is invented. He is not a real analyst and should not be presented as one.
