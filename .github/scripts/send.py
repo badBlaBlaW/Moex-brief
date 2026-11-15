@@ -11,7 +11,8 @@ def pick_file() -> pathlib.Path:
         if not p.is_file():
             sys.exit(f"{named} not found")
         return p
-    briefs = sorted(p for p in pathlib.Path("briefs").glob("*.md") if p.stat().st_size)
+    briefs = sorted(p for p in pathlib.Path("briefs").glob("*.md")
+                    if p.stat().st_size and p.name.lower() != "readme.md")
     if not briefs:
         sys.exit("no briefs/*.md found")
     return briefs[-1]                 # filenames are YYYY-MM-DD, so last = newest
