@@ -16,8 +16,15 @@ import bridge_text as B, tg
 POLL_SECONDS = 50                 # how long Telegram holds the connection
 RUN_SECONDS  = 5 * 3600 + 40 * 60  # stop before the 6h job limit
 
-def git(*args, check=True):
-    return subprocess.run(["git", *args], capture_output=True, text=True, check=check)
+def git(*args, check=False):
+    """Never raises. A git hiccup must not end a six-hour shift."""
+    try:
+        return subprocess.run(["git", *args], capture_output=True, text=True,
+                              check=False, timeout=120)
+    except Exception as e:                      # timeout, missing binary, anything
+        print(f"::warning::git {' '.join(args)[:60]}: {e}")
+        class R: returncode, stdout, stderr = 1, "", str(e)
+        return R()
 
 
 def refresh():
@@ -67,6 +74,26 @@ def persist(cfg):
     print("::warning::could not push config change")
 
 INVITE_MINUTES = 15
+GREET_COOLDOWN = 20        # seconds; Telegram clients can re-send /start on their own
+
+def greeted_recently(cfg, chat_id) -> bool:
+    """True if this chat was greeted moments ago.
+
+    Opening a bot via a deep link, or re-opening a cleared chat, can make the
+    client send /start without the user pressing anything — sometimes twice.
+    A second greeting inside the cooldown is always noise.
+    """
+    seen = (cfg.get("greeted") or {}).get(str(chat_id))
+    if not seen:
+        return False
+    try:
+        age = (datetime.now(timezone.utc) - datetime.fromisoformat(seen)).total_seconds()
+    except ValueError:
+        return False
+    return 0 <= age < GREET_COOLDOWN
+
+def mark_greeted(cfg, chat_id) -> None:
+    cfg.setdefault("greeted", {})[str(chat_id)] = datetime.now(timezone.utc).isoformat()
 
 def bot_username(cfg) -> str:
     if not cfg.get("bot_username"):
@@ -123,6 +150,10 @@ def handle(msg, cfg) -> None:
         return                                 # everyone else gets silence
 
     if cmd == "/start":
+        if greeted_recently(cfg, chat_id):
+            print(f"ignoring repeat /start from {chat_id} inside the cooldown")
+            return
+        mark_greeted(cfg, chat_id)
         tg.send(B.ASK_LANGUAGE, chat_id=chat_id, markup=B.kb_language())
         cfg["stage"] = "awaiting_language"
     elif raw in (B.MENU_BTN["ru"]["device"], B.MENU_BTN["en"]["device"]) or cmd == "/device":
@@ -177,8 +208,12 @@ def drain(cfg, wait: int):
         cfg["last_update_id"] = max(cfg["last_update_id"], newest)
 
     for u in updates:
-        if u.get("message"):
+        if not u.get("message"):
+            continue
+        try:
             handle(u["message"], cfg)
+        except Exception as e:                  # keep listening whatever happens
+            print(f"::warning::handling update {u.get('update_id')} failed: {e}")
     return cfg != before, len(updates)
 
 def main() -> None:
