@@ -1,11 +1,14 @@
 {
   "language": "ru",
-  "last_update_id": 945576975,
+  "last_update_id": 945576976,
   "onboarded": true,
-  "stage": "idle",
+  "stage": "awaiting_language",
   "owners": [
     ""
   ],
   "invite": null,
-  "bot_username": "ShareMarkWatch_bot"
+  "bot_username": "ShareMarkWatch_bot",
+  "greeted": {
+    "": "2026-11-15T18:06:31.316954+00:00"
+  }
 }
