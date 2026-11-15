@@ -1,0 +1,27 @@
+name: Relay brief to Telegram
+
+on:
+  push:
+    paths:
+      - 'briefs/*.md'
+  workflow_dispatch:
+    inputs:
+      file:
+        description: 'Brief to resend (e.g. briefs/2026-11-17.md). Blank = newest.'
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Send to Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BRIEF_FILE: ${{ github.event.inputs.file }}
+        run: python3 .github/scripts/send.py
