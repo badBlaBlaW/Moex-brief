@@ -59,3 +59,13 @@ jobs:
           else
             echo "brief unchanged"
           fi
+
+      # A push made with GITHUB_TOKEN does not trigger other workflows — GitHub
+      # blocks that to prevent loops. So send from here rather than relying on
+      # the relay firing on push.
+      - name: Send to Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BRIEF_FILE: briefs/${{ github.event.inputs.date }}.md
+        run: python3 .github/scripts/send.py
