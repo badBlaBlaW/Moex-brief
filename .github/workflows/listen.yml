@@ -30,6 +30,7 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_OWNERS: ${{ secrets.TELEGRAM_OWNERS }}
         run: python3 .github/scripts/listen.py
 
       - name: Hand over to the next shift

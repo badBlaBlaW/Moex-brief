@@ -3,12 +3,5 @@
   "last_update_id": 945576989,
   "onboarded": true,
   "stage": "awaiting_language",
-  "owners": [
-    ""
-  ],
-  "invite": null,
-  "bot_username": "ShareMarkWatch_bot",
-  "greeted": {
-    "": "2026-11-16T08:21:13.995474+00:00"
-  }
+  "bot_username": "ShareMarkWatch_bot"
 }

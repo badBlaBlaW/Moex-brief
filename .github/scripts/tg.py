@@ -20,10 +20,16 @@ def chat() -> str:
 def owners(cfg: dict) -> list:
     """Every chat allowed to use the bot and entitled to the briefs.
 
-    The primary owner lives in the TELEGRAM_CHAT_ID secret and is never written
-    to the repository. Devices enrolled later are listed in config.json.
+    This repository is public, so no chat ID may ever be written into it — a
+    chat ID is a durable personal identifier. They live in secrets instead:
+    TELEGRAM_CHAT_ID for the primary device, TELEGRAM_OWNERS for the rest, as a
+    comma- or space-separated list. cfg["owners"] is still honoured so a
+    private fork keeps working, but save_config never writes it.
     """
     out = [chat()]
+    for c in re.split(r"[,\s]+", os.environ.get("TELEGRAM_OWNERS", "")):
+        if c.strip() and c.strip() not in out:
+            out.append(c.strip())
     for c in cfg.get("owners", []):
         if str(c) not in out:
             out.append(str(c))
@@ -53,8 +59,14 @@ def load_config() -> dict:
         cfg["language"] = "en"
     return cfg
 
+#: Never committed to a public repository. Kept in memory for the current run,
+#: dropped on save: raw chat IDs and a live invite token are personal data and
+#: a working credential respectively.
+PRIVATE_KEYS = ("owners", "greeted", "invite")
+
 def save_config(cfg: dict) -> None:
-    CONFIG.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n",
+    public = {k: v for k, v in cfg.items() if k not in PRIVATE_KEYS}
+    CONFIG.write_text(json.dumps(public, indent=2, ensure_ascii=False) + "\n",
                       encoding="utf-8")
 
 def call(method: str, payload: dict, retries: int = 2, http_timeout: int = 35):
