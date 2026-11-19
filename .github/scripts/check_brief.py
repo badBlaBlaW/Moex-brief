@@ -51,6 +51,14 @@ def main() -> None:
     elif cyr > len(text) * 0.3:
         fail("language is 'en' but the brief came back mostly in Russian")
 
+    # A brief written from memory instead of from searches is the failure the
+    # gate would otherwise pass: it reads fine and every number is stale. Live
+    # sources are the evidence that searching happened.
+    links = re.findall(r"https?://[^\s)\]]+", text)
+    if len(links) < 3:
+        fail(f"only {len(links)} source link(s) — the brief was probably written "
+             f"from memory rather than from live searches")
+
     dead = re.findall(r"\b[A-Z]{1,3}[+-]?\.ru\b", text)
     if dead:
         print(f"::warning::rating written as a dead link: {sorted(set(dead))}")

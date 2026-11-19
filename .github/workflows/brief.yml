@@ -72,7 +72,10 @@ jobs:
             Write the finished brief to briefs/${{ steps.now.outputs.date }}.md
             and change no other file.
           claude_args: |
-            --model ${{ vars.BRIEF_MODEL || 'claude-sonnet-5-5' }}
+            # An alias always resolves to the current model; a full name can go
+            # stale and fail the run. Set the BRIEF_MODEL variable to 'opus' for
+            # better judgement at higher cost.
+            --model ${{ vars.BRIEF_MODEL || 'sonnet' }}
             --max-turns 60
             --allowedTools "Read,Write,Glob,Grep,WebSearch,WebFetch"
 
