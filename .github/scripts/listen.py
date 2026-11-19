@@ -14,7 +14,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import bridge_text as B, tg
 
 POLL_SECONDS = 50                 # how long Telegram holds the connection
-RUN_SECONDS  = 5 * 3600 + 40 * 60  # stop before the 6h job limit
+RUN_SECONDS  = 20 * 60             # short shifts: 6h ones exhausted the month's minutes
 
 def git(*args, check=False):
     """Never raises. A git hiccup must not end a six-hour shift."""
