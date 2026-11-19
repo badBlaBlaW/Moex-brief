@@ -1,12 +1,15 @@
 name: Mark is listening
 
-# Holds a long-poll open to Telegram so replies are immediate. Each run listens
-# for just under six hours, then starts the next one, so the chain is
-# continuous. The schedule is only a safety net if a link in the chain breaks.
+# Holds a long-poll open to Telegram so replies are immediate.
+#
+# THE SCHEDULE IS DELIBERATELY OFF. Shifts every five hours consumed roughly
+# 3,000 Actions minutes a month against a 2,000-minute free allowance on a
+# private repository, which stopped every workflow in the repository — the
+# brief included. Start a shift by hand (Actions → Mark is listening → Run
+# workflow) or move the bot onto the Cloudflare Worker in worker/, which has no
+# minute budget at all. Do not restore the cron on a private repository.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '7 */5 * * *'
 
 permissions:
   contents: write        # to remember the language choice

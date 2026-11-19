@@ -50,14 +50,24 @@ Open in any browser, with your token in place of `<TOKEN>`:
 Look for `"chat":{"id":123456789` — that number is your **chat ID**.
 
 ### 3. Add both to GitHub
-**Settings → Secrets and variables → Actions → New repository secret.** Add two:
+**Settings → Secrets and variables → Actions → New repository secret.** Add three:
 
-| Name                | Value                  |
-|---------------------|------------------------|
-| `TELEGRAM_TOKEN`    | the token from step 4  |
-| `TELEGRAM_CHAT_ID`  | the number from step 2 |
+| Name                      | Value                                        |
+|---------------------------|----------------------------------------------|
+| `TELEGRAM_TOKEN`          | the token from step 4                        |
+| `TELEGRAM_CHAT_ID`        | the number from step 2                       |
+| `CLAUDE_CODE_OAUTH_TOKEN` | run `claude setup-token` and paste the result |
 
 They are encrypted. Nobody can read them back — not you, not Claude.
+
+The third one is what writes the brief. It authenticates against a Claude
+subscription (Pro, Max, Team or Enterprise), so there is no API account, no
+card and no per-brief bill. An `ANTHROPIC_API_KEY` works in its place if you
+would rather pay per token — swap the `claude_code_oauth_token:` line in
+`.github/workflows/brief.yml` for `anthropic_api_key:`.
+
+Optional: a repository **variable** named `BRIEF_MODEL` overrides the model.
+Default `claude-sonnet-5-5`; set `claude-opus-5-5` if a brief reads thin.
 
 ### 4. Say hello
 Send `/start` to your bot. Mark replies instantly, in whatever language your

@@ -3,9 +3,10 @@ name: Collect Telegram channels
 # Runs shortly before the brief. GitHub runners have open internet; neither
 # Claude's container nor the scheduled session can reach t.me, so the digest is
 # collected here and read from the repository.
+# Schedule removed: the daily brief now collects the channels itself as its
+# first step, so a second scheduled run only spent Actions minutes. Kept for
+# running the scrape on its own when something needs checking.
 on:
-  schedule:
-    - cron: '36 5 * * 1-5'        # 08:36 Moscow, ~16 min before the brief
   workflow_dispatch:
 
 permissions:

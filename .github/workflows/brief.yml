@@ -1,8 +1,12 @@
 name: Daily brief
 
-# Everything happens here: collect the channels, write the brief via the Claude
-# API, commit it, send it. A scheduled Claude session cannot write to GitHub by
-# any route, so generation moved to the runner, which has open internet.
+# One job does everything: scrape the Telegram channels, write the brief, commit
+# it, send it.
+#
+# The brief is written by Claude Code running on the runner, authenticated with
+# a Claude subscription (CLAUDE_CODE_OAUTH_TOKEN) rather than API credits.
+# A scheduled Claude session cannot write to GitHub by any route, which is why
+# generation lives here and not in a scheduled task.
 on:
   schedule:
     - cron: '47 5 * * 1-5'        # 08:47 Moscow — GitHub cron drifts, so early
@@ -10,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 concurrency:
   group: daily-brief
@@ -18,7 +23,7 @@ concurrency:
 jobs:
   brief:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -26,11 +31,34 @@ jobs:
         continue-on-error: true     # a stale digest must not stop the brief
         run: python3 .github/scripts/collect_telegram.py
 
+      - name: Moscow date
+        id: now
+        run: |
+          echo "date=$(TZ=Europe/Moscow date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          echo "human=$(TZ=Europe/Moscow LC_ALL=C date '+%A %d %B %Y, %H:%M')" >> "$GITHUB_OUTPUT"
+
       - name: Write the brief
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Our own token, so the Claude GitHub App does not need installing.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Today is ${{ steps.now.outputs.human }} Moscow time.
+
+            Read the file .github/prompts/brief.md and follow it exactly.
+
+            Write the finished brief to briefs/${{ steps.now.outputs.date }}.md
+            and change no other file.
+          claude_args: |
+            --model ${{ vars.BRIEF_MODEL || 'claude-sonnet-5-5' }}
+            --max-turns 60
+            --allowedTools "Read,Write,Glob,Grep,WebSearch,WebFetch"
+
+      - name: Check the brief is real
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          BRIEF_MODEL: ${{ vars.BRIEF_MODEL }}
-        run: python3 .github/scripts/generate_brief.py
+          BRIEF: briefs/${{ steps.now.outputs.date }}.md
+        run: python3 .github/scripts/check_brief.py
 
       - name: Commit
         run: |
@@ -38,15 +66,19 @@ jobs:
             git config user.name  "Mark"
             git config user.email "noreply@anthropic.com"
             git add briefs/ sources/
-            git commit -m "Brief $(TZ=Europe/Moscow date +%Y-%m-%d)"
+            git commit -m "Brief ${{ steps.now.outputs.date }}"
             for i in 1 2 3; do
               git push && break
               git pull --rebase --autostash -q || true
             done
+          else
+            echo "::warning::nothing to commit"
           fi
 
       - name: Send to Telegram
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Name it, so a failed run can never fall back to yesterday's brief.
+          BRIEF_FILE: briefs/${{ steps.now.outputs.date }}.md
         run: python3 .github/scripts/send.py

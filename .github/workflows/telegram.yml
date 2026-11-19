@@ -1,10 +1,8 @@
 name: Relay brief to Telegram
 
+# Manual resend only. The daily brief sends itself as its last step, so a push
+# trigger here would be a second message for the same brief.
 on:
-  push:
-    paths:
-      - 'briefs/*.md'
-      - '!briefs/README.md'
   workflow_dispatch:
     inputs:
       file:
