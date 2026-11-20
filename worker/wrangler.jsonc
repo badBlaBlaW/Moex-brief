@@ -1,0 +1,32 @@
+{
+  // Cloudflare deploys from this file. Build settings in the dashboard point
+  // their root directory at `worker`, so `npx wrangler deploy` runs here and
+  // finds it. The Worker in the dashboard must be named exactly as below, or a
+  // deploy creates a second Worker instead of updating the first.
+  //
+  // Bindings and vars live here, because a git deploy is the source of truth
+  // for them and would otherwise drop what was set by hand in the dashboard.
+  // Secrets do NOT live here — TELEGRAM_TOKEN, OWNER_CHAT_ID and
+  // WEBHOOK_SECRET are set in the dashboard and are never touched by a deploy.
+  // This repository is public: no secret may ever be written in this file.
+  "name": "markwatch",
+  "main": "worker.js",
+  "compatibility_date": "2026-11-20",
+  "workers_dev": true,
+
+  "kv_namespaces": [
+    {
+      "binding": "STATE",
+      "id": "PASTE_KV_NAMESPACE_ID_HERE"
+    }
+  ],
+
+  "vars": {
+    "GITHUB_REPO": "badBlaBlaW/Moex-brief",
+    "BRIEF_TIME": "08:47"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}

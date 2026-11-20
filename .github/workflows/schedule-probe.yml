@@ -11,10 +11,16 @@ name: Scheduler probe
 # it actually ran, in the log and in one short Telegram message. Two attempts,
 # because GitHub delays scheduled runs under load and a single miss would not
 # distinguish "late" from "never".
+# Second attempt. The first pair (09:25 and 09:55 UTC) produced nothing, but
+# that test was contaminated: the file had existed for only 26 minutes before
+# the first cron, and a history rewrite at 09:52 UTC changed the very commit
+# that introduced it, seconds before the second. These two are far enough out
+# that registration cannot be the excuse, and nothing will be force-pushed
+# afterwards.
 on:
   schedule:
-    - cron: '25 9 * * 5'
-    - cron: '55 9 * * 5'
+    - cron: '45 10 * * 5'
+    - cron: '20 11 * * 5'
   workflow_dispatch:
 
 permissions:
