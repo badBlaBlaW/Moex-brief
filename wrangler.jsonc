@@ -13,7 +13,10 @@
   // Secrets do NOT live here — TELEGRAM_TOKEN, OWNER_CHAT_ID and
   // WEBHOOK_SECRET are set in the dashboard and are never touched by a deploy.
   // This repository is public: no secret may ever be written in this file.
-  "name": "markwatch",
+  // Must match the Worker's name in the dashboard exactly. It is moex-brief
+  // there, so it is moex-brief here; with a different name a deploy quietly
+  // creates a second Worker and serves the old code from the first.
+  "name": "moex-brief",
   "main": "worker/worker.js",
   "compatibility_date": "2026-11-20",
   "workers_dev": true,
