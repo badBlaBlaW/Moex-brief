@@ -14,10 +14,18 @@
   "compatibility_date": "2026-11-20",
   "workers_dev": true,
 
+  // Without this, a deploy deletes every var not listed below before writing
+  // the ones that are. Secrets survive a deploy regardless, so the three real
+  // credentials are safe as long as they are added with type Secret — but a
+  // value added as Text by mistake would vanish on the next push, and the bot
+  // would stop with nothing in the logs to explain it. This is the safety net
+  // for that mistake, not a substitute for using Secret.
+  "keep_vars": true,
+
   "kv_namespaces": [
     {
       "binding": "STATE",
-      "id": "PASTE_KV_NAMESPACE_ID_HERE"
+      "id": "ca42b016f6fe434dacdd1650a42f6cdb"
     }
   ],
 
