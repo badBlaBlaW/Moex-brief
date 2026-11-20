@@ -1,18 +1,31 @@
 /**
- * MarkWatch — Telegram webhook.
+ * MarkWatch — Telegram webhook and brief fan-out.
  *
  * Telegram pushes each message here the instant it is sent, so Mark answers
- * immediately. Conversation state and the language choice live in config.json
- * in the brief repository, which is also what the daily brief reads.
+ * immediately rather than whenever a polling job happens to be awake.
  *
- * Secrets (Worker → Settings → Variables and Secrets):
- *   TELEGRAM_TOKEN    from @BotFather
- *   TELEGRAM_CHAT_ID  the owner's chat id; every other chat is ignored
- *   WEBHOOK_SECRET    a long random string, also passed to setWebhook
- *   GITHUB_TOKEN      fine-grained PAT, Contents: Read and write, this repo only
- *   GITHUB_REPO       e.g. badBlaBlaW/Moex-brief
+ * All state lives in Workers KV, never in the repository: the repository is
+ * public, and chat ids and live invite tokens must not be. Briefs are read
+ * from raw.githubusercontent.com, which serves a public repo to anyone, so the
+ * Worker holds no GitHub credential at all.
+ *
+ * The Worker also owns the recipient list. The daily job POSTs each finished
+ * brief to /publish and this fans it out to everyone enrolled, so a device
+ * that enrols itself through an invite link starts receiving briefs without
+ * anyone editing a secret.
+ *
+ * Bindings (Worker → Settings):
+ *   KV namespace, bound as        STATE
+ *   secret  TELEGRAM_TOKEN        from @BotFather
+ *   secret  OWNER_CHAT_ID         your own chat id; always allowed
+ *   secret  WEBHOOK_SECRET        long random string, also passed to setWebhook
+ *           and sent by the daily job as X-Publish-Secret
+ *   var     GITHUB_REPO           e.g. badBlaBlaW/Moex-brief
+ *   var     BRIEF_TIME            optional, default "08:47"
  */
-/* ---- Mark's conversation text (inlined so this is one file) ---- */
+
+/* ------------------------------------------------- Mark's conversation text */
+
 const ASK_LANGUAGE =
   "👋 <b>Привет! Я Марк.</b>\n" +
   "Присылаю короткий обзор Мосбиржи каждое утро по будням — до открытия торгов.\n\n" +
@@ -23,10 +36,8 @@ const ASK_LANGUAGE =
 const LANG_BTN = { ru: "🇷🇺 Русский", en: "🇬🇧 English" };
 
 const CONFIRMED = {
-  ru: (when) =>
-    `Отлично — буду писать по-русски.\n\nСледующий обзор: <b>${when}</b>.`,
-  en: (when) =>
-    `English it is.\n\nYour next brief: <b>${when}</b>.`,
+  ru: (when) => `Отлично — буду писать по-русски.\n\nСледующий обзор: <b>${when}</b>.`,
+  en: (when) => `English it is.\n\nYour next brief: <b>${when}</b>.`,
 };
 
 const OFFER = {
@@ -45,10 +56,8 @@ const DECLINED = {
 };
 
 const NO_BRIEF_YET = {
-  ru: (when) =>
-    `Сегодняшнего обзора ещё нет — первый придёт ${when}.`,
-  en: (when) =>
-    `There is no brief yet — the first one arrives ${when}.`,
+  ru: (when) => `Сегодняшнего обзора ещё нет — следующий придёт ${when}.`,
+  en: (when) => `There is no brief yet — the next one arrives ${when}.`,
 };
 
 const SENDING = { ru: "Сейчас пришлю 👇", en: "Here it comes 👇" };
@@ -61,25 +70,49 @@ const SWITCHED = {
 const HELP = {
   ru:
     "<b>Как это работает</b>\n\n" +
-    "Обзор приходит сам, каждый будний день в <b>08:52 МСК</b> — примерно за час " +
-    "до открытия торгов.\n\n" +
+    "Обзор приходит сам, каждый будний день — примерно за час до открытия торгов.\n\n" +
     "В каждом обзоре: рынок, бумаги из списка, которые реально двигались, " +
-    "рекомендации по порядку важности, мой личный взгляд на слухи и " +
-    "закономерности, и сдвинулись ли вероятности сценариев.\n\n" +
-    "Кнопки ниже: сменить язык или прислать последний обзор ещё раз.",
+    "рекомендации, мой личный взгляд на слухи и закономерности, проверка " +
+    "фактов из Telegram-каналов и сдвинулись ли вероятности сценариев.\n\n" +
+    "Кнопки ниже: прислать последний обзор, сменить язык, добавить ещё одно " +
+    "устройство.",
   en:
     "<b>How this works</b>\n\n" +
-    "A brief arrives on its own every weekday at <b>08:52 Moscow time</b>, about " +
-    "an hour before the market opens.\n\n" +
-    "Each one covers: the tape, watchlist names that actually moved, ranked " +
-    "recommendations, my own read on rumours and patterns, and whether the " +
-    "scenario probabilities have shifted.\n\n" +
-    "The buttons below switch language or resend the latest brief.",
+    "A brief arrives on its own every weekday, about an hour before the market " +
+    "opens.\n\n" +
+    "Each one covers: the tape, watchlist names that actually moved, " +
+    "recommendations, my own read on rumours and patterns, a fact-check of the " +
+    "Telegram channels, and whether the scenario probabilities have shifted.\n\n" +
+    "The buttons below resend the latest brief, switch language, or add another " +
+    "device.",
 };
 
 const MENU_BTN = {
-  ru: { lang: "🇬🇧 English", brief: "📄 Последний обзор", help: "❓ Помощь" },
-  en: { lang: "🇷🇺 Русский", brief: "📄 Latest brief", help: "❓ Help" },
+  ru: { brief: "📄 Последний обзор", lang: "🇬🇧 English", help: "❓ Помощь",
+        invite: "🔗 Добавить устройство" },
+  en: { brief: "📄 Latest brief", lang: "🇷🇺 Русский", help: "❓ Help",
+        invite: "🔗 Add a device" },
+};
+
+const INVITE_MSG = {
+  ru: (link, mins) =>
+    "<b>Ссылка для нового устройства</b>\n\n" +
+    `${link}\n\n` +
+    `Откройте её на новом телефоне. Ссылка одноразовая и действует ${mins} минут.`,
+  en: (link, mins) =>
+    "<b>Link for a new device</b>\n\n" +
+    `${link}\n\n` +
+    `Open it on the new phone. One use only, valid for ${mins} minutes.`,
+};
+
+const ENROLLED = {
+  ru: "✅ Устройство добавлено. Обзоры будут приходить и сюда.",
+  en: "✅ Device added. Briefs will arrive here too.",
+};
+
+const INVITE_BAD = {
+  ru: "Ссылка недействительна или уже использована. Попросите новую.",
+  en: "That link is invalid or already used. Ask for a fresh one.",
 };
 
 const DISCLAIMER = {
@@ -90,117 +123,42 @@ const DISCLAIMER = {
 const COMMANDS = {
   ru: [{ command: "brief", description: "Последний обзор" },
        { command: "help", description: "Как это работает" },
+       { command: "invite", description: "Добавить устройство" },
        { command: "en", description: "Switch to English" }],
   en: [{ command: "brief", description: "Latest brief" },
        { command: "help", description: "How this works" },
+       { command: "invite", description: "Add a device" },
        { command: "ru", description: "Переключить на русский" }],
 };
 
-/** When the next brief lands, in words. Briefs go out 08:52 MSK, Mon–Fri. */
-function nextBrief(lang, now = new Date()) {
-  const msk = new Date(now.getTime() + 3 * 3600 * 1000);   // UTC+3
-  const mins = msk.getUTCHours() * 60 + msk.getUTCMinutes();
-  const DOW = msk.getUTCDay();                             // 0 Sun .. 6 Sat
-  const weekday = (d) => d >= 1 && d <= 5;
+const LIMIT = 3800;            // Telegram caps a message at 4096
+const GREET_COOLDOWN_MS = 20_000;   // clients re-send /start on their own
+const INVITE_MINUTES = 15;
+const BRIEF_LOOKBACK_DAYS = 10;
 
-  if (weekday(DOW) && mins < 8 * 60 + 52) {
-    return lang === "ru" ? "сегодня в 08:52 МСК" : "today at 08:52 Moscow time";
+/* ------------------------------------------------------------------ helpers */
+
+/** When the next brief lands, in words. */
+export function nextBrief(lang, now = new Date(), hhmm = "08:47") {
+  const [H, M] = hhmm.split(":").map(Number);
+  const msk = new Date(now.getTime() + 3 * 3600 * 1000);      // UTC+3
+  const mins = msk.getUTCHours() * 60 + msk.getUTCMinutes();
+  const DOW = msk.getUTCDay();                                // 0 Sun .. 6 Sat
+  const weekday = (d) => d >= 1 && d <= 5;
+  const at = lang === "ru" ? `в ${hhmm} МСК` : `at ${hhmm} Moscow time`;
+
+  if (weekday(DOW) && mins < H * 60 + M) {
+    return lang === "ru" ? `сегодня ${at}` : `today ${at}`;
   }
   let d = DOW, hops = 0;
   do { d = (d + 1) % 7; hops++; } while (!weekday(d));
-  if (hops === 1) {
-    return lang === "ru" ? "завтра в 08:52 МСК" : "tomorrow at 08:52 Moscow time";
-  }
-  const RU = ["в воскресенье","в понедельник","во вторник","в среду","в четверг","в пятницу","в субботу"];
-  const EN = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-  return lang === "ru" ? `${RU[d]} в 08:52 МСК` : `on ${EN[d]} at 08:52 Moscow time`;
+  if (hops === 1) return lang === "ru" ? `завтра ${at}` : `tomorrow ${at}`;
+  const RU = ["в воскресенье", "в понедельник", "во вторник", "в среду",
+              "в четверг", "в пятницу", "в субботу"];
+  const EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday",
+              "Friday", "Saturday"];
+  return lang === "ru" ? `${RU[d]} ${at}` : `on ${EN[d]} ${at}`;
 }
-
-const T = { ASK_LANGUAGE, LANG_BTN, CONFIRMED, OFFER, OFFER_BTN, DECLINED, NO_BRIEF_YET, SENDING, SWITCHED, HELP, MENU_BTN, DISCLAIMER, COMMANDS, nextBrief };
-
-
-const LIMIT = 3800;                       // Telegram caps a message at 4096
-
-/* ---------------------------------------------------------------- Telegram */
-
-async function tg(env, method, payload) {
-  const r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/${method}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!r.ok) console.log(`${method} -> ${r.status} ${await r.text()}`);
-  return r;
-}
-
-const rows = (...r) => ({ keyboard: r, resize_keyboard: true, is_persistent: true });
-
-const kbLanguage = () => rows([{ text: T.LANG_BTN.ru }, { text: T.LANG_BTN.en }]);
-const kbOffer = (l) => rows([{ text: T.OFFER_BTN[l].yes }, { text: T.OFFER_BTN[l].no }]);
-const kbMenu = (l) => rows(
-  [{ text: T.MENU_BTN[l].brief }],
-  [{ text: T.MENU_BTN[l].lang }, { text: T.MENU_BTN[l].help }],
-);
-
-async function say(env, text, markup) {
-  return tg(env, "sendMessage", {
-    chat_id: env.TELEGRAM_CHAT_ID, text, parse_mode: "HTML",
-    disable_web_page_preview: true, ...(markup ? { reply_markup: markup } : {}),
-  });
-}
-
-/* ------------------------------------------------------------------ GitHub */
-
-const ghUrl = (env, p) => `https://api.github.com/repos/${env.GITHUB_REPO}/contents/${p}`;
-const ghHead = (env) => ({
-  Authorization: `Bearer ${env.GITHUB_TOKEN}`,
-  Accept: "application/vnd.github+json",
-  "User-Agent": "markwatch-worker",
-});
-const b64decode = (s) =>
-  decodeURIComponent(Array.prototype.map
-    .call(atob(s.replace(/\n/g, "")), (c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-    .join(""));
-const b64encode = (s) => btoa(unescape(encodeURIComponent(s)));
-
-async function readConfig(env) {
-  try {
-    const r = await fetch(ghUrl(env, "config.json"), { headers: ghHead(env) });
-    if (!r.ok) return { cfg: {}, sha: null };
-    const j = await r.json();
-    return { cfg: JSON.parse(b64decode(j.content)), sha: j.sha };
-  } catch (e) { console.log("readConfig:", e); return { cfg: {}, sha: null }; }
-}
-
-async function saveConfig(env, patch) {
-  const { cfg, sha } = await readConfig(env);
-  const next = { ...cfg, ...patch };
-  const r = await fetch(ghUrl(env, "config.json"), {
-    method: "PUT", headers: ghHead(env),
-    body: JSON.stringify({
-      message: "bot: update settings",
-      content: b64encode(JSON.stringify(next, null, 2) + "\n"),
-      ...(sha ? { sha } : {}),
-    }),
-  });
-  if (!r.ok) console.log(`saveConfig -> ${r.status} ${await r.text()}`);
-}
-
-async function latestBrief(env) {
-  try {
-    const r = await fetch(ghUrl(env, "briefs"), { headers: ghHead(env) });
-    if (!r.ok) return null;
-    const files = (await r.json())
-      .filter((f) => f.name.endsWith(".md") && f.name.toLowerCase() !== "readme.md")
-      .sort((a, b) => a.name.localeCompare(b.name));
-    if (!files.length) return null;
-    const f = await fetch(ghUrl(env, `briefs/${files.at(-1).name}`), { headers: ghHead(env) });
-    if (!f.ok) return null;
-    return b64decode((await f.json()).content);
-  } catch (e) { console.log("latestBrief:", e); return null; }
-}
-
-/* --------------------------------------------------------------- Rendering */
 
 export function mdToHtml(md) {
   return md.split("\n").map((line) => {
@@ -233,80 +191,274 @@ export function chunk(text, limit = LIMIT) {
   return parts.filter((p) => p.trim());
 }
 
-async function sendBrief(env, lang) {
-  const md = await latestBrief(env);
-  if (!md) { await say(env, T.NO_BRIEF_YET[lang](T.nextBrief(lang)), kbMenu(lang)); return; }
-  await say(env, T.SENDING[lang]);
+/** Telegram sends the client's own language; honour it before asking. */
+export function guessLang(from) {
+  return String(from?.language_code || "").toLowerCase().startsWith("ru") ? "ru" : "en";
+}
+
+export function route(raw) {
+  const t = (raw || "").trim();
+  const first = t.split(/\s+/)[0].toLowerCase().split("@")[0];
+  if (first === "/start") {
+    const arg = t.split(/\s+/)[1];
+    return arg ? { do: "redeem", token: arg } : { do: "start" };
+  }
+  if (t === LANG_BTN.ru || first === "/ru") return { do: "language", lang: "ru" };
+  if (t === LANG_BTN.en || first === "/en") return { do: "language", lang: "en" };
+  if (t === OFFER_BTN.ru.yes || t === OFFER_BTN.en.yes) return { do: "yes" };
+  if (t === OFFER_BTN.ru.no || t === OFFER_BTN.en.no) return { do: "no" };
+  if (first === "/brief" || t === MENU_BTN.ru.brief || t === MENU_BTN.en.brief)
+    return { do: "brief" };
+  if (first === "/invite" || t === MENU_BTN.ru.invite || t === MENU_BTN.en.invite)
+    return { do: "invite" };
+  return { do: "help" };
+}
+
+/* ----------------------------------------------------------------- KV state */
+
+const rows = (...r) => ({ keyboard: r, resize_keyboard: true, is_persistent: true });
+const kbLanguage = () => rows([{ text: LANG_BTN.ru }, { text: LANG_BTN.en }]);
+const kbOffer = (l) => rows([{ text: OFFER_BTN[l].yes }, { text: OFFER_BTN[l].no }]);
+const kbMenu = (l) => rows(
+  [{ text: MENU_BTN[l].brief }],
+  [{ text: MENU_BTN[l].lang }, { text: MENU_BTN[l].help }],
+  [{ text: MENU_BTN[l].invite }],
+);
+
+async function getOwners(env) {
+  const primary = String(env.OWNER_CHAT_ID || "").trim();
+  let extra = [];
+  try { extra = JSON.parse((await env.STATE.get("owners")) || "[]"); } catch { extra = []; }
+  const all = primary ? [primary] : [];
+  for (const c of extra) if (!all.includes(String(c))) all.push(String(c));
+  return all;
+}
+
+async function addOwner(env, chatId) {
+  const id = String(chatId);
+  if (id === String(env.OWNER_CHAT_ID)) return;
+  let extra = [];
+  try { extra = JSON.parse((await env.STATE.get("owners")) || "[]"); } catch { extra = []; }
+  if (!extra.map(String).includes(id)) {
+    extra.push(id);
+    await env.STATE.put("owners", JSON.stringify(extra));
+  }
+}
+
+async function isOwner(env, chatId) {
+  return (await getOwners(env)).includes(String(chatId));
+}
+
+const langKey = (c) => `lang:${c}`;
+async function getLang(env, chatId, fallback = "en") {
+  const v = await env.STATE.get(langKey(chatId));
+  return v === "ru" || v === "en" ? v : fallback;
+}
+const setLang = (env, chatId, l) => env.STATE.put(langKey(chatId), l);
+
+/* ---------------------------------------------------------------- Telegram */
+
+async function tg(env, method, payload) {
+  const r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) console.log(`${method} -> ${r.status} ${await r.text()}`);
+  return r;
+}
+
+async function say(env, chatId, text, markup) {
+  return tg(env, "sendMessage", {
+    chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true,
+    ...(markup ? { reply_markup: markup } : {}),
+  });
+}
+
+async function botUsername(env) {
+  const cached = await env.STATE.get("bot_username");
+  if (cached) return cached;
+  try {
+    const r = await tg(env, "getMe", {});
+    const u = (await r.json())?.result?.username;
+    if (u) { await env.STATE.put("bot_username", u); return u; }
+  } catch (e) { console.log("getMe:", e); }
+  return null;
+}
+
+/* ------------------------------------------------------------------ briefs */
+
+/**
+ * The newest brief. /publish caches it in KV, so normally this costs no
+ * subrequest. Otherwise walk back from today over raw.githubusercontent.com,
+ * which needs no credential because the repository is public. A directory
+ * cannot be listed over raw, hence the walk.
+ */
+async function latestBrief(env) {
+  const cached = await env.STATE.get("brief:latest");
+  if (cached) return cached;
+  const base = `https://raw.githubusercontent.com/${env.GITHUB_REPO}/main/briefs`;
+  const now = new Date(Date.now() + 3 * 3600 * 1000);
+  for (let i = 0; i < BRIEF_LOOKBACK_DAYS; i++) {
+    const d = new Date(now.getTime() - i * 86400 * 1000);
+    const name = d.toISOString().slice(0, 10);
+    try {
+      const r = await fetch(`${base}/${name}.md`);
+      if (r.ok) {
+        const md = await r.text();
+        if (md.trim().length > 500) {
+          await env.STATE.put("brief:latest", md, { expirationTtl: 86400 });
+          return md;
+        }
+      }
+    } catch (e) { console.log("latestBrief:", e); }
+  }
+  return null;
+}
+
+async function sendBriefTo(env, chatId, lang, md, announce = false) {
+  if (!md) {
+    await say(env, chatId, NO_BRIEF_YET[lang](nextBrief(lang, new Date(), env.BRIEF_TIME)),
+              kbMenu(lang));
+    return 0;
+  }
+  if (announce) await say(env, chatId, SENDING[lang]);
   const parts = chunk(mdToHtml(md.trim()));
   for (let i = 0; i < parts.length; i++) {
     const last = i === parts.length - 1;
     const tag = parts.length > 1
       ? `\n\n<i>(${i + 1}${lang === "ru" ? " из " : "/"}${parts.length})</i>` : "";
-    await say(env, parts[i] + tag, last ? kbMenu(lang) : undefined);
+    await say(env, chatId, parts[i] + tag, last ? kbMenu(lang) : undefined);
   }
+  return parts.length;
 }
 
-/* ----------------------------------------------------------------- Routing */
+/* ---------------------------------------------------------------- handlers */
 
-export function route(raw, lang) {
-  const t = (raw || "").trim();
-  const c = t.toLowerCase().split("@")[0];
-  if (c === "/start") return { do: "start" };
-  if (t === T.LANG_BTN.ru || c === "/ru") return { do: "language", lang: "ru" };
-  if (t === T.LANG_BTN.en || c === "/en") return { do: "language", lang: "en" };
-  if (t === T.OFFER_BTN.ru.yes || t === T.OFFER_BTN.en.yes) return { do: "yes" };
-  if (t === T.OFFER_BTN.ru.no  || t === T.OFFER_BTN.en.no)  return { do: "no" };
-  if (c === "/brief" || t === T.MENU_BTN.ru.brief || t === T.MENU_BTN.en.brief)
-    return { do: "brief" };
-  return { do: "help" };
+async function handleMessage(env, ctx, msg) {
+  const chatId = String(msg.chat.id);
+  const r = route(msg.text);
+  const known = await isOwner(env, chatId);
+
+  // An unenrolled chat may do exactly one thing: redeem a valid invite.
+  if (!known) {
+    if (r.do !== "redeem") return;
+    const stored = await env.STATE.get("invite", { type: "json" });
+    const ok = stored && stored.token === r.token && Date.now() < stored.exp;
+    const lang = guessLang(msg.from);
+    if (!ok) { await say(env, chatId, INVITE_BAD[lang]); return; }
+    await env.STATE.delete("invite");           // single use
+    await addOwner(env, chatId);
+    await setLang(env, chatId, lang);
+    await say(env, chatId, ENROLLED[lang], kbMenu(lang));
+    return;
+  }
+
+  const lang = await getLang(env, chatId, guessLang(msg.from));
+
+  if (r.do === "start" || r.do === "redeem") {
+    // Telegram clients re-send /start when a cleared chat is reopened or a deep
+    // link is followed, which is what produced duplicate greetings before.
+    const last = Number((await env.STATE.get(`greet:${chatId}`)) || 0);
+    if (Date.now() - last < GREET_COOLDOWN_MS) return;
+    await env.STATE.put(`greet:${chatId}`, String(Date.now()), { expirationTtl: 300 });
+    await say(env, chatId, ASK_LANGUAGE, kbLanguage());
+    return;
+  }
+
+  if (r.do === "language") {
+    const L = r.lang;
+    await setLang(env, chatId, L);
+    await say(env, chatId, CONFIRMED[L](nextBrief(L, new Date(), env.BRIEF_TIME)));
+    await say(env, chatId, OFFER[L], kbOffer(L));
+    ctx.waitUntil(tg(env, "setMyCommands", { commands: COMMANDS[L] }));
+    return;
+  }
+
+  if (r.do === "yes") {
+    await sendBriefTo(env, chatId, lang, await latestBrief(env), true);
+    return;
+  }
+
+  if (r.do === "no") {
+    await say(env, chatId,
+      DECLINED[lang](nextBrief(lang, new Date(), env.BRIEF_TIME)) + "\n\n" + DISCLAIMER[lang],
+      kbMenu(lang));
+    return;
+  }
+
+  if (r.do === "brief") {
+    await sendBriefTo(env, chatId, lang, await latestBrief(env), true);
+    return;
+  }
+
+  if (r.do === "invite") {
+    const token = crypto.randomUUID().replace(/-/g, "").slice(0, 22);
+    const exp = Date.now() + INVITE_MINUTES * 60_000;
+    await env.STATE.put("invite", JSON.stringify({ token, exp }),
+                        { expirationTtl: INVITE_MINUTES * 60 + 60 });
+    const user = await botUsername(env);
+    const link = user ? `https://t.me/${user}?start=${token}` : `/start ${token}`;
+    await say(env, chatId, INVITE_MSG[lang](link, INVITE_MINUTES), kbMenu(lang));
+    return;
+  }
+
+  await say(env, chatId, HELP[lang], kbMenu(lang));
 }
+
+/** The daily job POSTs the finished brief here; fan it out from KV. */
+async function handlePublish(env, body) {
+  const md = String(body?.markdown || "");
+  if (md.trim().length < 500) {
+    return { ok: false, error: "markdown missing or too short", sent: 0 };
+  }
+  await env.STATE.put("brief:latest", md, { expirationTtl: 86400 });
+  const owners = await getOwners(env);
+  let sent = 0, failed = [];
+  for (const c of owners) {
+    try {
+      await sendBriefTo(env, c, await getLang(env, c, "ru"), md, false);
+      sent++;
+    } catch (e) { failed.push(c); console.log(`publish to ${c}:`, e); }
+  }
+  return { ok: true, recipients: owners.length, sent, failed: failed.length };
+}
+
+/* ----------------------------------------------------------------- routing */
 
 export default {
   async fetch(request, env, ctx) {
-    if (request.method === "GET") return new Response("MarkWatch webhook: up");
-    if (request.method !== "POST") return new Response("ok");
-    if (request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== env.WEBHOOK_SECRET)
-      return new Response("forbidden", { status: 403 });
+    const url = new URL(request.url);
 
+    if (request.method === "GET") {
+      return new Response("MarkWatch webhook: up");
+    }
+    if (request.method !== "POST") return new Response("ok");
+
+    // The daily job's fan-out endpoint, guarded by the same shared secret.
+    if (url.pathname === "/publish") {
+      if (request.headers.get("X-Publish-Secret") !== env.WEBHOOK_SECRET) {
+        return new Response("forbidden", { status: 403 });
+      }
+      let body;
+      try { body = await request.json(); }
+      catch { return Response.json({ ok: false, error: "bad json" }, { status: 400 }); }
+      const result = await handlePublish(env, body);
+      return Response.json(result, { status: result.ok ? 200 : 400 });
+    }
+
+    // Telegram's webhook.
+    if (request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== env.WEBHOOK_SECRET) {
+      return new Response("forbidden", { status: 403 });
+    }
     let update;
     try { update = await request.json(); } catch { return new Response("ok"); }
     const msg = update.message;
-    if (!msg || String(msg.chat?.id) !== String(env.TELEGRAM_CHAT_ID))
-      return new Response("ok");
+    if (!msg || !msg.chat || !msg.text) return new Response("ok");
 
-    const { cfg } = await readConfig(env);
-    const lang = cfg.language === "ru" ? "ru" : "en";
-    const r = route(msg.text, lang);
-
-    if (r.do === "start") {
-      await say(env, T.ASK_LANGUAGE, kbLanguage());
-      ctx.waitUntil(saveConfig(env, { stage: "awaiting_language" }));
-      return new Response("ok");
-    }
-
-    if (r.do === "language") {
-      const L = r.lang;
-      await say(env, T.CONFIRMED[L](T.nextBrief(L)));
-      await say(env, T.OFFER[L], kbOffer(L));
-      ctx.waitUntil(Promise.all([
-        saveConfig(env, { language: L, stage: "awaiting_offer", onboarded: true }),
-        tg(env, "setMyCommands", { commands: T.COMMANDS[L] }),
-      ]));
-      return new Response("ok");
-    }
-
-    if (r.do === "yes")   { await sendBrief(env, lang);
-                            ctx.waitUntil(saveConfig(env, { stage: "idle" }));
-                            return new Response("ok"); }
-
-    if (r.do === "no")    { await say(env, T.DECLINED[lang](T.nextBrief(lang)) +
-                                      "\n\n" + T.DISCLAIMER[lang], kbMenu(lang));
-                            ctx.waitUntil(saveConfig(env, { stage: "idle" }));
-                            return new Response("ok"); }
-
-    if (r.do === "brief") { await sendBrief(env, lang); return new Response("ok"); }
-
-    await say(env, T.HELP[lang], kbMenu(lang));
+    // Always answer Telegram promptly; a slow handler means repeated deliveries.
+    try { await handleMessage(env, ctx, msg); }
+    catch (e) { console.log("handleMessage:", e); }
     return new Response("ok");
   },
 };

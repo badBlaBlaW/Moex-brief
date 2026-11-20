@@ -1,107 +1,161 @@
 # Instant replies — Cloudflare Worker setup
 
-Telegram pushes each message to this Worker the moment you send it, so Mark
-answers immediately. About 15 minutes, all free, all in a browser.
+Right now the bot can only answer while a GitHub job happens to be running,
+which is almost never. This puts Mark on a Cloudflare Worker: Telegram pushes
+every message straight to it, so the bot replies the moment you press a button.
 
-**Do the steps in order.** Step 5 switches Telegram over, and until the Worker
-exists there is nothing for it to switch to.
+It also becomes the keeper of the device list, so a new phone can enrol itself
+from a link instead of you editing a secret.
+
+**Cost: nothing.** The free plan allows 100,000 Worker requests a day and
+100,000 storage reads; this uses a few dozen. There is no trial that lapses and
+no card required.
+
+Everything below is clicking and pasting. No command line.
 
 ---
 
-## 1. Make a GitHub token (so Mark can remember your language)
+## 1. Make a Cloudflare account
 
-1. Go to **github.com/settings/personal-access-tokens/new**
-2. **Token name:** `markwatch-worker`
-3. **Expiration:** 1 year
-4. **Repository access** → **Only select repositories** → pick **Moex-brief**
-5. **Permissions** → **Repository permissions** → find **Contents** → set to
-   **Read and write**
-6. **Generate token**, then copy it. It starts `github_pat_...`
-   You cannot see it again after leaving the page.
+Go to **dash.cloudflare.com** and sign up. You do not need a domain and you do
+not need to move any DNS. Choose the **Free** plan if asked.
 
-## 2. Make a webhook secret
+## 2. Make the storage
 
-Any long random string of your own invention — letters and digits, 30+
-characters, no spaces. Write it down; you need it twice.
+In the left sidebar: **Storage & Databases** → **KV** → **Create instance**.
+
+- Name it `markwatch`
+- **Create**
+
+This is where the language choice, the enrolled devices and the invite tokens
+live. None of it goes in the repository, because the repository is public.
 
 ## 3. Create the Worker
 
-1. Sign up free at **dash.cloudflare.com**
-2. Left sidebar → **Compute (Workers)** → **Create** → **Start with Hello World**
-3. Name it `markwatch` → **Deploy**
-4. Click **Edit code**
-5. Delete everything in the editor, paste the entire contents of `worker.js`
-6. **Deploy**
+Left sidebar: **Compute (Workers)** → **Create** → **Start from Hello World** →
+**Create**.
 
-Copy the Worker's address — it looks like
-`https://markwatch.<your-subdomain>.workers.dev`
+- Name it `markwatch`
 
-## 4. Add the five secrets
+When the editor opens, delete everything in it, then paste the whole contents of
+`worker/worker.js` from this repository. Click **Deploy**.
 
-In the Worker → **Settings** → **Variables and Secrets** → **Add**.
-For each one choose type **Secret**, not Text.
+Copy the address it gives you — something like
+`https://markwatch.yourname.workers.dev`. You need it twice below.
+
+## 4. Attach the storage
+
+In the Worker: **Settings** → **Bindings** → **Add** → **KV namespace**.
+
+- Variable name: `STATE`  ← exactly this, capital letters
+- KV namespace: `markwatch`
+- **Deploy**
+
+## 5. Make a webhook secret
+
+This is one long random string that you will paste in three places. Invent one —
+30 characters of letters and digits, no spaces. For example:
+
+```
+mark7watch4quiet9river2stone6blue
+```
+
+Write it down somewhere; you need it in steps 6, 7 and 9.
+
+## 6. Add the Worker's settings
+
+In the Worker: **Settings** → **Variables and Secrets**.
+
+Add these as **Secret** (the type that cannot be read back):
 
 | Name | Value |
-|------|-------|
-| `TELEGRAM_TOKEN` | from @BotFather |
-| `TELEGRAM_CHAT_ID` | your chat id (see step 2) |
-| `WEBHOOK_SECRET` | the random string from step 2 |
-| `GITHUB_TOKEN` | the `github_pat_...` from step 1 |
-| `GITHUB_REPO` | `owner/repo` of this repository |
+|---|---|
+| `TELEGRAM_TOKEN` | the bot token from @BotFather |
+| `OWNER_CHAT_ID` | your own chat id — the number @userinfobot gave you |
+| `WEBHOOK_SECRET` | the string from step 5 |
 
-**Deploy** again after adding them.
+Add these as **Text**:
 
-## 5. Point Telegram at the Worker
+| Name | Value |
+|---|---|
+| `GITHUB_REPO` | `badBlaBlaW/Moex-brief` |
+| `BRIEF_TIME` | `08:47` |
 
-Open this in a browser, replacing the three bracketed parts:
+**Deploy** after adding them.
 
-    https://api.telegram.org/bot<TOKEN>/setWebhook?url=<WORKER_URL>&secret_token=<WEBHOOK_SECRET>
+Note what is *not* here: no GitHub token. The repository is public, so the
+Worker reads briefs without any credential, and it has no way to write to your
+repository at all.
+
+## 7. Point Telegram at the Worker
+
+Open this in a browser, with your own values substituted:
+
+```
+https://api.telegram.org/bot<TELEGRAM_TOKEN>/setWebhook?url=https://markwatch.yourname.workers.dev&secret_token=<WEBHOOK_SECRET>
+```
 
 You should see `{"ok":true,"result":true,"description":"Webhook was set"}`.
 
-## 6. Test
+From this moment Telegram stops queuing messages for polling and pushes them to
+the Worker instead.
 
-Send `/start` to the bot. Within a second Mark should ask, in both languages,
-which one you want. Then:
+## 8. Test it
 
-1. Tap 🇷🇺 Русский or 🇬🇧 English
-2. He confirms and tells you when the next brief lands
-3. He asks whether to send today's brief now
-4. Tap yes and it arrives; tap no and he signs off until the next one
+Open the bot on your phone and press **Start**. The greeting should appear
+instantly. Pick a language, then try **📄 Последний обзор** — the latest brief
+should arrive in a second or two.
 
-## 7. Remove the temporary bridge
+Then press **🔗 Добавить устройство**. You get a one-time link, valid 15
+minutes. Open it on another phone and that phone enrols itself and starts
+receiving briefs. No secrets to edit.
 
-Once the webhook works, delete these three files from the repository — they
-were only there to answer the bot before the Worker existed:
+## 9. Let the daily brief use the Worker
 
-    .github/workflows/listen.yml
-    .github/scripts/listen.py
-    .github/scripts/bridge_text.py
+So that a self-enrolled phone also gets the *daily* brief, the GitHub job hands
+each finished brief to the Worker to deliver.
 
-They retire themselves quietly if you forget (Telegram stops serving
-getUpdates once a webhook is set), but there is no reason to keep them.
+In the repository: **Settings → Secrets and variables → Actions**, add two
+secrets:
+
+| Name | Value |
+|---|---|
+| `WORKER_URL` | `https://markwatch.yourname.workers.dev` |
+| `WEBHOOK_SECRET` | the same string from step 5 |
+
+Until these exist the job sends briefs itself, to the chats in
+`TELEGRAM_OWNERS`, exactly as it does today. Once they exist the Worker
+delivers, and the job falls back to sending directly if the Worker is ever
+unreachable — so a Worker problem can never cost you a brief.
+
+## 10. Turn off the listener
+
+The old polling workflow is now redundant. In the repository: **Actions** →
+**Mark is listening** → the `...` menu → **Disable workflow**.
 
 ---
 
 ## Checking on it
 
-Worker not replying? Cloudflare dashboard → your Worker → **Logs** → **Begin log
-stream**, then message the bot. Every request and error appears live.
-
-Telegram's own view of the connection:
-
-    https://api.telegram.org/bot<TOKEN>/getWebhookInfo
-
-`last_error_message` is the field that matters.
+- **Cloudflare** → your Worker → **Logs** → **Begin log stream**, then press a
+  button in the bot. You see each request as it happens.
+- **Is the webhook healthy?** Open
+  `https://api.telegram.org/bot<TELEGRAM_TOKEN>/getWebhookInfo`.
+  `pending_update_count` should be 0 and `last_error_message` absent.
 
 ## Turning it off
 
-    https://api.telegram.org/bot<TOKEN>/deleteWebhook
+Open `https://api.telegram.org/bot<TELEGRAM_TOKEN>/deleteWebhook`. Telegram goes
+back to queuing updates, and the polling workflow can be re-enabled. Delete the
+`WORKER_URL` secret and the daily brief sends directly again.
 
-The daily briefs keep arriving either way — they do not go through the Worker.
-Only the buttons stop working.
+## What it costs
 
-## What costs what
+| | Free allowance | This uses |
+|---|---|---|
+| Requests | 100,000/day | a few dozen |
+| CPU per request | 10 ms | well under; waiting on the network does not count |
+| Storage reads | 100,000/day | a handful |
+| Storage writes | 1,000/day | a handful — only on enrolment or a language change |
 
-Cloudflare's free tier is 100,000 requests a day. A bot used by one person uses
-a handful. The Worker sleeps at zero cost between messages.
+Nothing here approaches a paid tier.

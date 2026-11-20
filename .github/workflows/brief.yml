@@ -101,9 +101,15 @@ jobs:
 
       - name: Send to Telegram
         env:
+          # Preferred route: the Worker holds the enrolled devices, so a phone
+          # that enrolled itself through an invite link is included. Unset until
+          # the Worker is deployed, in which case this sends directly instead.
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+          # Fallback route, and what runs when no Worker is configured.
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_OWNERS: ${{ secrets.TELEGRAM_OWNERS }}
           # Name it, so a failed run can never fall back to yesterday's brief.
           BRIEF_FILE: ${{ steps.now.outputs.brief }}
-        run: python3 .github/scripts/send.py
+        run: python3 .github/scripts/publish.py
