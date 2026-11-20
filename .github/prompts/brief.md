@@ -17,6 +17,16 @@ Do these four things first, in this order:
    rate from memory — if you cannot confirm a number, give the direction and
    say the level is unconfirmed. Never invent a figure.
 
+**Verify these six before writing a word, one search each, and do not stop at
+the first page that fails to show them:** the index level and its move, RGBI
+together with the long OFZ yield, Brent, USD/RUB, the key rate, and the latest
+weekly inflation print. These six are the spine of the brief — a baseline
+figure carried over from an earlier brief and labelled unverified is a gap, not
+an answer, and three or four of them unverified makes the brief useless. Budget
+roughly fifteen searches for the whole job and spend them. Also look up the
+current share price of every name you intend to put a yield on; a yield
+computed against a stale price is wrong, not approximate.
+
 # Language
 
 WRITE THE ENTIRE BRIEF IN THE LANGUAGE `config.json` NAMES. `ru` → Russian,
@@ -108,14 +118,24 @@ hyphen bullets, 3,500–5,000 characters. Six sections.
    changes, watchlist additions. Label each ПОДТВЕРЖДЕНО / СООБЩАЕТСЯ / СЛУХ /
    МОЯ ОЦЕНКА, name the source, say which way it cuts and how confident you
    are. Be opinionated; never present a rumour as fact.
-6. **Сценарии** — spell all three out in full, never by letter:
+6. **Сценарии** — three scenarios, never referred to by letter or number:
    Ставки снижаются (30%, индекс ~2 550) · Урегулирование на Украине (25%,
-   ~3 950) · Всё буксует (45%, ~1 880). Then one line on whether today moved
-   them.
+   ~3 950) · Всё буксует (45%, ~1 880).
+
+   **Each one gets its own paragraph: the name, the probability, the index
+   target, and then a full sentence on the mechanism — what actually has to
+   happen, and what it does to dividend names.** A bare list of three labels
+   with numbers is not acceptable; the reader has said they cannot remember
+   which scenario is which, and a label does not remind them. Close with one
+   line on whether today moved the weights.
 
 Start with a single `# ` heading naming the date. End with
 «Аналитика, а не лицензированная инвестиционная рекомендация.» and source
 links.
+
+**Source links must point at the actual articles used**, with the headline or
+the subject as the link text — not a bare homepage. `https://www.interfax.ru`
+proves nothing and cannot be checked; the page carrying the figure can.
 
 # Where to put it
 

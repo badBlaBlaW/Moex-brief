@@ -59,6 +59,13 @@ def main() -> None:
         fail(f"only {len(links)} source link(s) — the brief was probably written "
              f"from memory rather than from live searches")
 
+    # A homepage is not a source: it cannot be checked and it does not show
+    # where a figure came from. Deep links are the ones that carry evidence.
+    deep = [u for u in links if re.search(r"https?://[^/]+/.+", u)]
+    if len(deep) < 2:
+        print(f"::warning::{len(deep)} of {len(links)} source links point at an "
+              f"actual page; the rest are bare homepages")
+
     dead = re.findall(r"\b[A-Z]{1,3}[+-]?\.ru\b", text)
     if dead:
         print(f"::warning::rating written as a dead link: {sorted(set(dead))}")
