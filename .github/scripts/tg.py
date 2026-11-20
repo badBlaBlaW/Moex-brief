@@ -94,7 +94,10 @@ def send(text: str, chat_id: str | None = None, markup: dict | None = None):
     target = chat_id or chat()
     payload = {"chat_id": target, "text": text, "parse_mode": "HTML",
                "disable_web_page_preview": True}
-    if markup:
+    # A negative id is a group or a channel. Channels take no reply keyboard —
+    # the buttons belong to a private chat — and sending one there is rejected
+    # outright, which would lose the message, not just the buttons.
+    if markup and not str(target).lstrip().startswith("-"):
         payload["reply_markup"] = markup
     try:
         return call("sendMessage", payload)
