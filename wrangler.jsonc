@@ -1,8 +1,12 @@
 {
-  // Cloudflare deploys from this file. Build settings in the dashboard point
-  // their root directory at `worker`, so `npx wrangler deploy` runs here and
-  // finds it. The Worker in the dashboard must be named exactly as below, or a
-  // deploy creates a second Worker instead of updating the first.
+  // Cloudflare deploys from this file. It lives at the repository root on
+  // purpose: a git build runs `npx wrangler deploy` from the root by default,
+  // so nothing has to be set for it to be found. Setting a root directory in
+  // the dashboard would move the build somewhere this file is not, which is
+  // the usual way these builds fail.
+  //
+  // The Worker in the dashboard must be named exactly as below, or a deploy
+  // creates a second Worker instead of updating the first.
   //
   // Bindings and vars live here, because a git deploy is the source of truth
   // for them and would otherwise drop what was set by hand in the dashboard.
@@ -10,7 +14,7 @@
   // WEBHOOK_SECRET are set in the dashboard and are never touched by a deploy.
   // This repository is public: no secret may ever be written in this file.
   "name": "markwatch",
-  "main": "worker.js",
+  "main": "worker/worker.js",
   "compatibility_date": "2026-11-20",
   "workers_dev": true,
 
