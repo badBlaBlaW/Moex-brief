@@ -1,0 +1,23 @@
+name: Who is the bot talking to
+
+# Run this when a brief reports success but nothing arrives. It asks Telegram
+# who the configured chats are and sends one probe carrying a code shown in the
+# log, so the device that receives it identifies itself.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ask Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_OWNERS: ${{ secrets.TELEGRAM_OWNERS }}
+        run: python3 .github/scripts/diagnose.py
