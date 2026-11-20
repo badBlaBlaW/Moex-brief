@@ -1,0 +1,50 @@
+name: Scheduler probe
+
+# TEMPORARY — delete once it has answered.
+#
+# The only untested part of the daily brief is whether GitHub's own scheduler
+# fires at all: it skipped 08:47 on 20 November, and the brief's cron is
+# weekdays only, so waiting for the next real run would mean waiting until
+# Monday to learn something testable today.
+#
+# This fires twice on Friday 20 November and does nothing but report the time
+# it actually ran, in the log and in one short Telegram message. Two attempts,
+# because GitHub delays scheduled runs under load and a single miss would not
+# distinguish "late" from "never".
+on:
+  schedule:
+    - cron: '25 9 * * 5'
+    - cron: '55 9 * * 5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Report when this actually ran
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_OWNERS: ${{ secrets.TELEGRAM_OWNERS }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          echo "fired at $(date -u '+%H:%M:%S UTC') / $(TZ=Europe/Moscow date '+%H:%M:%S MSK')"
+          echo "event: $EVENT"
+          python3 - <<'PY'
+          import os, sys, datetime, zoneinfo
+          sys.path.insert(0, ".github/scripts")
+          import tg
+          msk = datetime.datetime.now(zoneinfo.ZoneInfo("Europe/Moscow"))
+          tg.broadcast(tg.load_config(),
+              f"⏱ <b>Проверка расписания</b>\n\n"
+              f"Запуск сработал в {msk:%H:%M} МСК, событие: "
+              f"<code>{os.environ.get('EVENT')}</code>.\n"
+              f"Это техническая проверка того, что GitHub запускает задачи "
+              f"по времени. Обзоры это сообщение не затрагивает.")
+          print("reported")
+          PY
